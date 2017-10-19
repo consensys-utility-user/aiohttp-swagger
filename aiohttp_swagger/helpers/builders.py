@@ -145,7 +145,7 @@ def generate_doc_from_each_end_point(
 
 def load_doc_from_yaml_file(doc_path: str, app=None):
     loaded_yaml = yaml.load(open(doc_path, "r").read())
-    if app:
+    if not (app is None):
         existing_path_descr = loaded_yaml['paths']
         loaded_yaml['paths'] = defaultdict(dict)
         loaded_yaml['paths'].update(existing_path_descr)

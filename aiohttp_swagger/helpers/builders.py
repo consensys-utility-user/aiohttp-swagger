@@ -6,6 +6,7 @@ from aiohttp import web
 from aiohttp.hdrs import METH_ANY, METH_ALL
 from jinja2 import Template
 
+
 try:
     import ujson as json
 except ImportError: # pragma: no cover
@@ -37,9 +38,7 @@ def _extract_swagger_docs(end_point_doc, method="get"):
     return {method: end_point_swagger_doc}
 
 def _build_doc_from_func_doc(route):
-
     out = {}
-
     if issubclass(route.handler, web.View) and route.method == METH_ANY:
         method_names = {
             attr for attr in dir(route.handler) \
@@ -56,39 +55,12 @@ def _build_doc_from_func_doc(route):
             end_point_doc = route.handler.__doc__.splitlines()
         except AttributeError:
             return {}
-        out.update(_extract_swagger_docs(end_point_doc))
+        method = route.method or 'GET'
+        out.update(_extract_swagger_docs(end_point_doc, method=method.lower()))
     return out
 
-def generate_doc_from_each_end_point(
-        app: web.Application,
-        *,
-        api_base_url: str = "/",
-        description: str = "Swagger API definition",
-        api_version: str = "1.0.0",
-        title: str = "Swagger API",
-        contact: str = ""):
-    # Clean description
-    _start_desc = 0
-    for i, word in enumerate(description):
-        if word != '\n':
-            _start_desc = i
-            break
-    cleaned_description = "    ".join(description[_start_desc:].splitlines())
 
-    # Load base Swagger template
-    with open(join(SWAGGER_TEMPLATE, "swagger.yaml"), "r") as f:
-        swagger_base = (
-            Template(f.read()).render(
-                description=cleaned_description,
-                version=api_version,
-                title=title,
-                contact=contact,
-                base_path=api_base_url)
-        )
-
-    # The Swagger OBJ
-    swagger = yaml.load(swagger_base)
-    swagger["paths"] = defaultdict(dict)
+def _extract_doc_from_each_endpoint(app, swagger):
 
     for route in app.router.routes():
 
@@ -134,11 +106,50 @@ def generate_doc_from_each_end_point(
 
             swagger["paths"][url].update(end_point_doc)
 
+
+def generate_doc_from_each_end_point(
+        app: web.Application,
+        *,
+        api_base_url: str = "/",
+        description: str = "Swagger API definition",
+        api_version: str = "1.0.0",
+        title: str = "Swagger API",
+        contact: str = ""):
+    # Clean description
+    _start_desc = 0
+    for i, word in enumerate(description):
+        if word != '\n':
+            _start_desc = i
+            break
+    cleaned_description = "    ".join(description[_start_desc:].splitlines())
+
+    # Load base Swagger template
+    with open(join(SWAGGER_TEMPLATE, "swagger.yaml"), "r") as f:
+        swagger_base = (
+            Template(f.read()).render(
+                description=cleaned_description,
+                version=api_version,
+                title=title,
+                contact=contact,
+                base_path=api_base_url)
+        )
+
+    # The Swagger OBJ
+    swagger = yaml.load(swagger_base)
+    swagger["paths"] = defaultdict(dict)
+
+    _extract_doc_from_each_endpoint(app, swagger)
+
     return json.dumps(swagger)
 
 
-def load_doc_from_yaml_file(doc_path: str):
+def load_doc_from_yaml_file(doc_path: str, app=None):
     loaded_yaml = yaml.load(open(doc_path, "r").read())
+    if app:
+        existing_path_descr = loaded_yaml['paths']
+        loaded_yaml['paths'] = defaultdict(dict)
+        loaded_yaml['paths'].update(existing_path_descr)
+        _extract_doc_from_each_endpoint(app, loaded_yaml)
     return json.dumps(loaded_yaml)
 
 

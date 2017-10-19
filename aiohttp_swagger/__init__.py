@@ -56,7 +56,7 @@ def setup_swagger(app: web.Application,
     # Build Swagget Info
     if swagger_info is None:
         if swagger_from_file:
-            swagger_info = load_doc_from_yaml_file(swagger_from_file)
+            swagger_info = load_doc_from_yaml_file(swagger_from_file, app=app)
         else:
             swagger_info = generate_doc_from_each_end_point(
                 app, api_base_url=api_base_url, description=description,
